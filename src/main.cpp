@@ -1,8 +1,10 @@
 #include <Arduino.h>
 #include <Wire.h>
 #include <Adafruit_SHT4x.h>
+#include <Adafruit_VEML7700.h>
 
 Adafruit_SHT4x sht45;
+Adafruit_VEML7700 veml;
 
 void setup() {
     Serial.begin(115200);
@@ -21,12 +23,19 @@ void setup() {
     }
     sht45.setPrecision(SHT4X_HIGH_PRECISION);
     sht45.setHeater(SHT4X_NO_HEATER);
-    Serial.printf("SHT45 serial: %08lx\n", sht45.readSerial());
+
+    if (!veml.begin(&Wire)) {
+        Serial.println("VEML7700 not found");
+        while (true) delay(1000);
+    }
+    Serial.println("sensors ready");
 }
 
 void loop() {
     sensors_event_t hum, temp;
     sht45.getEvent(&hum, &temp);
-    Serial.printf("T %.2f C  RH %.2f %%\n", temp.temperature, hum.relative_humidity);
+    float lux = veml.readLux(VEML_LUX_AUTO);
+    Serial.printf("T %.2f C  RH %.2f %%  Light %.1f lux\n",
+                  temp.temperature, hum.relative_humidity, lux);
     delay(2000);
 }
