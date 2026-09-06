@@ -1,3 +1,4 @@
 .pio/
 .idea/
-CMakeListsPrivate.txtlogs/
+CMakeListsPrivate.txt
+logs/
