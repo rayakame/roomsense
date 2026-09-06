@@ -7,6 +7,7 @@
 #include <VOCGasIndexAlgorithm.h>
 #include <NOxGasIndexAlgorithm.h>
 #include <sps30.h>
+#include "driver/i2s_std.h"
 
 Adafruit_SHT4x sht45;
 Adafruit_VEML7700 veml;
@@ -14,6 +15,58 @@ Adafruit_DPS310 dps;
 SensirionI2CSgp41 sgp41;
 VOCGasIndexAlgorithm vocAlgo;
 NOxGasIndexAlgorithm noxAlgo;
+
+// ---- Mikrofon (ICS-43434 via I2S) ----
+static const gpio_num_t MIC_BCLK = GPIO_NUM_5;
+static const gpio_num_t MIC_WS   = GPIO_NUM_6;
+static const gpio_num_t MIC_DIN  = GPIO_NUM_9;
+static const uint32_t MIC_SAMPLE_RATE = 48000;
+static const int MIC_SAMPLES = 4800;            // 100 ms pro Messung
+static int32_t micBuf[MIC_SAMPLES];
+i2s_chan_handle_t micRx = nullptr;
+
+void micInit() {
+    i2s_chan_config_t chanCfg = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_0, I2S_ROLE_MASTER);
+    i2s_new_channel(&chanCfg, nullptr, &micRx);
+
+    i2s_std_config_t stdCfg = {
+        .clk_cfg  = I2S_STD_CLK_DEFAULT_CONFIG(MIC_SAMPLE_RATE),
+        .slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_32BIT, I2S_SLOT_MODE_MONO),
+        .gpio_cfg = {
+            .mclk = I2S_GPIO_UNUSED,
+            .bclk = MIC_BCLK,
+            .ws   = MIC_WS,
+            .dout = I2S_GPIO_UNUSED,
+            .din  = MIC_DIN,
+            .invert_flags = { .mclk_inv = false, .bclk_inv = false, .ws_inv = false },
+        },
+    };
+    stdCfg.slot_cfg.slot_mask = I2S_STD_SLOT_LEFT;   // SEL auf GND = linker Kanal
+
+    i2s_channel_init_std_mode(micRx, &stdCfg);
+    i2s_channel_enable(micRx);
+}
+
+// Liest 100 ms Audio und gibt den unbewerteten Schallpegel in dB SPL zurueck.
+// ICS-43434: 24 Bit Daten in 32-Bit-Slot, -26 dBFS bei 94 dB SPL.
+float readMicDb() {
+    size_t bytesRead = 0;
+    i2s_channel_read(micRx, micBuf, sizeof(micBuf), &bytesRead, pdMS_TO_TICKS(500));
+    int n = bytesRead / sizeof(int32_t);
+    if (n == 0) return -1.0f;
+
+    double sum = 0;
+    for (int i = 0; i < n; i++) sum += (micBuf[i] >> 8);
+    double mean = sum / n;
+    double sq = 0;
+    for (int i = 0; i < n; i++) {
+        double s = (micBuf[i] >> 8) - mean;
+        sq += s * s;
+    }
+    double rms = sqrt(sq / n);
+    double dbfs = 20.0 * log10(rms / 8388608.0);   // 2^23 = Vollausschlag 24 Bit
+    return (float)(dbfs + 94.0 + 26.0);
+}
 
 void setup() {
     Serial.begin(115200);
@@ -52,7 +105,6 @@ void setup() {
         while (true) delay(1000);
     }
 
-    // SPS30: probe, Auto-Cleaning alle 4 Tage, Messung starten
     sensirion_i2c_init();
     if (sps30_probe() != 0) {
         Serial.println("SPS30 not found");
@@ -64,7 +116,8 @@ void setup() {
         while (true) delay(1000);
     }
 
-    // SGP41 Conditioning: 10 s, nicht laenger!
+    micInit();
+
     Serial.println("SGP41 conditioning...");
     uint16_t srawVoc = 0;
     for (int i = 0; i < 10; i++) {
@@ -96,14 +149,13 @@ void loop() {
     struct sps30_measurement pm = {};
     uint16_t pmReady = 0;
     sps30_read_data_ready(&pmReady);
-    if (pmReady) {
-        sps30_read_measurement(&pm);
-    }
+    if (pmReady) sps30_read_measurement(&pm);
+
+    float db = readMicDb();
 
     Serial.printf("T %.2f C  RH %.2f %%  Light %.1f lux  P %.2f hPa  VOC %ld  NOx %ld  "
-                  "PM1 %.1f  PM2.5 %.1f  PM4 %.1f  PM10 %.1f ug/m3\n",
+                  "PM2.5 %.1f  PM10 %.1f  Noise %.1f dB\n",
                   temp.temperature, hum.relative_humidity, lux, pressure.pressure,
-                  vocIndex, noxIndex,
-                  pm.mc_1p0, pm.mc_2p5, pm.mc_4p0, pm.mc_10p0);
+                  vocIndex, noxIndex, pm.mc_2p5, pm.mc_10p0, db);
     delay(1000);
 }
