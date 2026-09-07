@@ -1,8 +1,4 @@
-//
-// Created by christopher on 06.09.26.
-//
+#pragma once
+#include <cstdint>
 
-#ifndef ROOMSENSE_CONFIG_H
-#define ROOMSENSE_CONFIG_H
-
-#endif //ROOMSENSE_CONFIG_H
+constexpr uint32_t SENSOR_INTERVAL_MS = 1000;
