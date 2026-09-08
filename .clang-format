@@ -1,0 +1,21 @@
+# Google C++ Style Guide. Project-specific deviations are listed in STYLE.md.
+BasedOnStyle: Google
+ColumnLimit: 100
+DerivePointerAlignment: false
+PointerAlignment: Left
+IncludeBlocks: Regroup
+IncludeCategories:
+  # 1. C system headers
+  - Regex: '^<(assert|ctype|errno|inttypes|limits|math|stdbool|stddef|stdint|stdio|stdlib|string|time)\.h>$'
+    Priority: 1
+  # 2. C++ standard library
+  - Regex: '^<[a-z_]+>$'
+    Priority: 2
+  # 4. Project headers
+  - Regex: '^"(core|sensors)/'
+    Priority: 4
+  - Regex: '^"config\.h"$'
+    Priority: 4
+  # 3. Other libraries (Arduino, Adafruit, Sensirion, ...)
+  - Regex: '.*'
+    Priority: 3
