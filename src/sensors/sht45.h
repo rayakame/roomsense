@@ -13,17 +13,16 @@ namespace roomsense {
 class Sht45 : public Sensor {
  public:
   const char* Name() const override;
-  bool Init() override;
-  bool Read() override;
   void Apply(Readings& readings) const override;
 
  private:
-  void Invalidate();
+  bool DoInit() override;
+  bool DoRead() override;
+  void Invalidate() override;
 
   Adafruit_SHT4x sht_;
   float temperature_ = NAN;
   float humidity_ = NAN;
-  bool ok_ = false;
 };
 
 }  // namespace roomsense

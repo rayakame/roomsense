@@ -13,14 +13,18 @@ namespace roomsense {
 class Veml7700 : public Sensor {
  public:
   const char* Name() const override;
-  bool Init() override;
-  bool Read() override;
   void Apply(Readings& readings) const override;
 
  private:
+  bool DoInit() override;
+  bool DoRead() override;
+  void Invalidate() override;
+
   Adafruit_VEML7700 veml_;
+  // begin() allocates its register objects and never frees them, so it may
+  // only run once.
+  bool driver_started_ = false;
   float lux_ = NAN;
-  bool ok_ = false;
 };
 
 }  // namespace roomsense

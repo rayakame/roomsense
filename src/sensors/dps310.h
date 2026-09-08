@@ -14,17 +14,16 @@ namespace roomsense {
 class Dps310 : public Sensor {
  public:
   const char* Name() const override;
-  bool Init() override;
-  bool Read() override;
   void Apply(Readings& readings) const override;
 
  private:
-  void Invalidate();
+  bool DoInit() override;
+  bool DoRead() override;
+  void Invalidate() override;
 
   Adafruit_DPS310 dps_;
   float pressure_ = NAN;
   float temperature_ = NAN;
-  bool ok_ = false;
 };
 
 }  // namespace roomsense

@@ -9,6 +9,7 @@
 #include <Wire.h>
 
 #include "core/readings.h"
+#include "core/time.h"
 
 namespace roomsense {
 namespace {
@@ -20,6 +21,11 @@ constexpr uint16_t kDefaultTTicks = 0x6666;
 
 // The datasheet limits conditioning to 10 s.
 constexpr int kConditioningSeconds = 10;
+
+// After conditioning the raw signals still drift while the heater settles.
+// Feeding them into the gas index algorithms would corrupt the learned
+// baseline, so the indices stay NAN for this long after every init.
+constexpr uint32_t kWarmupMs = 60000;
 
 uint16_t RhToTicks(float humidity) {
   return static_cast<uint16_t>(std::clamp(humidity, 0.0f, 100.0f) * 65535.0f / 100.0f);
@@ -37,34 +43,28 @@ float IndexOrNan(int32_t index) { return index == 0 ? NAN : static_cast<float>(i
 
 const char* Sgp41::Name() const { return "SGP41"; }
 
-bool Sgp41::Init() {
-  Serial.println("Initializing SGP41");
+bool Sgp41::DoInit() {
   sgp_.begin(Wire);
 
   std::array<uint16_t, 3> serial = {};
-  if (const int err = sgp_.getSerialNumber(serial.data()); err != 0) {
-    Serial.printf("SGP41 not found, error code: %d\n", err);
-    Invalidate();
+  if (sgp_.getSerialNumber(serial.data()) != 0) {
     return false;
   }
 
-  Serial.println("SGP41 conditioning...");
+  // The heater needs conditioning after every power-up, so this also runs
+  // again after a reconnect.
   for (int i = 0; i < kConditioningSeconds; i++) {
     uint16_t sraw_voc = 0;
-    if (const int err = sgp_.executeConditioning(kDefaultRhTicks, kDefaultTTicks, sraw_voc);
-        err != 0) {
-      Serial.printf("SGP41 conditioning failed, error code: %d\n", err);
-      Invalidate();
+    if (sgp_.executeConditioning(kDefaultRhTicks, kDefaultTTicks, sraw_voc) != 0) {
       return false;
     }
     delay(1000);
   }
-
-  ok_ = true;
+  warmup_until_ = millis() + kWarmupMs;
   return true;
 }
 
-bool Sgp41::Read() {
+bool Sgp41::DoRead() {
   // Compensate with the latest SHT45 values, fall back to the defaults while
   // none are available.
   uint16_t rh_ticks = kDefaultRhTicks;
@@ -77,26 +77,28 @@ bool Sgp41::Read() {
 
   uint16_t sraw_voc = 0;
   uint16_t sraw_nox = 0;
-  if (const int err = sgp_.measureRawSignals(rh_ticks, t_ticks, sraw_voc, sraw_nox); err != 0) {
-    Invalidate();
+  if (sgp_.measureRawSignals(rh_ticks, t_ticks, sraw_voc, sraw_nox) != 0) {
     return false;
+  }
+  if (!Reached(millis(), warmup_until_)) {
+    voc_index_ = NAN;
+    nox_index_ = NAN;
+    return true;
   }
   voc_index_ = IndexOrNan(voc_algo_.process(sraw_voc));
   nox_index_ = IndexOrNan(nox_algo_.process(sraw_nox));
-  ok_ = true;
   return true;
 }
 
 void Sgp41::Apply(Readings& readings) const {
   readings.voc_index = voc_index_;
   readings.nox_index = nox_index_;
-  readings.sgp_ok = ok_;
+  readings.sgp_ok = IsOk();
 }
 
 void Sgp41::Invalidate() {
   voc_index_ = NAN;
   nox_index_ = NAN;
-  ok_ = false;
 }
 
 }  // namespace roomsense

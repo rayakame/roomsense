@@ -13,11 +13,15 @@ void SensorTask(void* /*unused*/) {
   TickType_t last_wake = xTaskGetTickCount();
   for (;;) {
     for (Sensor* sensor : AllSensors()) {
-      sensor->Read();
+      sensor->Poll();
       ReadingsStore::Instance().Update([sensor](Readings& readings) { sensor->Apply(readings); });
     }
     ReadingsStore::Instance().Update([](Readings& readings) { readings.updated_at = millis(); });
-    vTaskDelayUntil(&last_wake, pdMS_TO_TICKS(kSensorIntervalMs));
+    if (xTaskDelayUntil(&last_wake, pdMS_TO_TICKS(kSensorIntervalMs)) == pdFALSE) {
+      // An init attempt took longer than one interval. Start a fresh interval
+      // instead of running the missed cycles back to back.
+      last_wake = xTaskGetTickCount();
+    }
   }
 }
 
@@ -35,12 +39,6 @@ void setup() {
   delay(100);
 
   Wire.begin();
-
-  for (roomsense::Sensor* sensor : roomsense::AllSensors()) {
-    if (!sensor->Init()) {
-      Serial.printf("Sensor %s failed to initialize!\n", sensor->Name());
-    }
-  }
 
   xTaskCreatePinnedToCore(roomsense::SensorTask, "sensors", 8192, nullptr, 1, nullptr, 1);
 }

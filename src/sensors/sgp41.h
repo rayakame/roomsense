@@ -17,20 +17,21 @@ namespace roomsense {
 class Sgp41 : public Sensor {
  public:
   const char* Name() const override;
-  bool Init() override;
-  bool Read() override;
   void Apply(Readings& readings) const override;
 
  private:
-  void Invalidate();
+  bool DoInit() override;
+  bool DoRead() override;
+  void Invalidate() override;
 
   SensirionI2CSgp41 sgp_;
   // Both algorithms assume one sample per second (see kSensorIntervalMs).
   VOCGasIndexAlgorithm voc_algo_;
   NOxGasIndexAlgorithm nox_algo_;
+  // Raw signals are not fed into the algorithms before this time, see DoInit().
+  uint32_t warmup_until_ = 0;
   float voc_index_ = NAN;
   float nox_index_ = NAN;
-  bool ok_ = false;
 };
 
 }  // namespace roomsense
