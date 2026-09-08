@@ -9,8 +9,6 @@
 
 namespace roomsense {
 
-// Barometric pressure sensor (Infineon DPS310, I2C). Also reports its own
-// temperature reading, which is less accurate than the SHT45's.
 class Dps310 : public Sensor {
  public:
   const char* Name() const override;

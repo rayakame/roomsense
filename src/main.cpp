@@ -1,3 +1,4 @@
+#include "audio/mic.h"
 #include <Arduino.h>
 #include <Wire.h>
 
@@ -41,16 +42,18 @@ void setup() {
   Wire.begin();
 
   xTaskCreatePinnedToCore(roomsense::SensorTask, "sensors", 8192, nullptr, 1, nullptr, 1);
+  roomsense::StartMicTask();
 }
 
 void loop() {
   const roomsense::Readings readings = roomsense::ReadingsStore::Instance().Snapshot();
   Serial.printf(
-      "T %.2f  RH %.2f  lux %.1f  P %.2f  VOC %.0f  NOx %.0f  PM2.5 %.1f  ok: sht=%d veml=%d "
-      "dps=%d sgp=%d sps=%d\n",
+      "T %.2f  RH %.2f  lux %.1f  P %.2f  VOC %.0f  NOx %.0f  PM2.5 %.1f  Leq %.1f  Lmax %.1f  "
+      "ok: sht=%d veml=%d dps=%d sgp=%d sps=%d mic=%d\n",
       readings.temperature, readings.humidity, readings.lux, readings.pressure, readings.voc_index,
-      readings.nox_index, readings.pm_2_5, static_cast<int>(readings.sht_ok),
-      static_cast<int>(readings.veml_ok), static_cast<int>(readings.dps_ok),
-      static_cast<int>(readings.sgp_ok), static_cast<int>(readings.sps_ok));
+      readings.nox_index, readings.pm_2_5, readings.noise_leq, readings.noise_max,
+      static_cast<int>(readings.sht_ok), static_cast<int>(readings.veml_ok),
+      static_cast<int>(readings.dps_ok), static_cast<int>(readings.sgp_ok),
+      static_cast<int>(readings.sps_ok), static_cast<int>(readings.mic_ok));
   delay(2000);
 }

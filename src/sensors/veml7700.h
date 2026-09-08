@@ -9,7 +9,6 @@
 
 namespace roomsense {
 
-// Ambient light sensor (Vishay VEML7700, I2C).
 class Veml7700 : public Sensor {
  public:
   const char* Name() const override;
@@ -21,8 +20,6 @@ class Veml7700 : public Sensor {
   void Invalidate() override;
 
   Adafruit_VEML7700 veml_;
-  // begin() allocates its register objects and never frees them, so it may
-  // only run once.
   bool driver_started_ = false;
   float lux_ = NAN;
 };

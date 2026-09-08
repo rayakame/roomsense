@@ -7,8 +7,6 @@
 
 namespace roomsense {
 
-// Particulate matter sensor (Sensirion SPS30, I2C). Reports mass
-// concentrations for PM1.0, PM2.5, PM4.0 and PM10 in µg/m³.
 class Sps30 : public Sensor {
  public:
   const char* Name() const override;

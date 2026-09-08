@@ -11,9 +11,6 @@
 
 namespace roomsense {
 
-// VOC and NOx gas sensor (Sensirion SGP41, I2C). Raw signals are converted to
-// the Sensirion gas indices (1..500). Temperature and humidity for
-// compensation are taken from the SHT45 values in ReadingsStore.
 class Sgp41 : public Sensor {
  public:
   const char* Name() const override;

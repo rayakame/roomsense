@@ -33,7 +33,6 @@ bool Veml7700::DoInit() {
 }
 
 bool Veml7700::DoRead() {
-  // readLux() does not report I2C errors, so check the bus explicitly.
   if (!I2cDevicePresent(Wire, VEML7700_I2CADDR_DEFAULT)) {
     return false;
   }

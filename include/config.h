@@ -12,4 +12,12 @@ constexpr uint32_t kSensorIntervalMs = 1000;
 // initialize again.
 constexpr uint32_t kSensorInitRetryMs = 5000;
 
+// Microphone (ICS-43434 via I2S).
+constexpr int kMicBclkPin = 5;
+constexpr int kMicWsPin = 6;
+constexpr int kMicDinPin = 9;
+constexpr uint32_t kMicSampleRate = 48000;
+constexpr int kMicBlockSamples = kMicSampleRate / 8;  // 125 ms
+constexpr int kMicBlocksPerSecond = 8;
+
 }  // namespace roomsense

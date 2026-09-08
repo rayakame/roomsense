@@ -26,7 +26,6 @@ bool Dps310::DoInit() {
 }
 
 bool Dps310::DoRead() {
-  // getEvents() does not report I2C errors, so check the bus explicitly.
   if (!I2cDevicePresent(Wire, DPS310_I2CADDR_DEFAULT)) {
     return false;
   }
