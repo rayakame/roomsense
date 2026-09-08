@@ -13,18 +13,15 @@ full path relative to `src/` (e.g. `#include "sensors/sensor.h"`).
 ## Tooling
 
 Formatting is defined in `.clang-format`, static checks and naming rules in
-`.clang-tidy`.
+`.clang-tidy`. The Makefile wraps both:
 
-    # format everything
-    clang-format -i $(find src include -name '*.h' -o -name '*.cpp')
-
-    # run clang-tidy with the flags of the real build (all .cpp below src/)
-    tools/clang_tidy.py
-
-    # check single files, or let clang-tidy apply fixes
-    tools/clang_tidy.py src/sensors/sgp41.cpp
-    tools/clang_tidy.py --fix
+    make format          # format all sources in place
+    make format-check    # non-zero exit if a file is not formatted
+    make tidy            # clang-tidy on all .cpp files
+    make tidy-fix        # apply clang-tidy fixes, then format
+    make check           # format-check + tidy
 
 `pio check` cannot be used: PlatformIO ships an old clang-tidy that does not
-understand the toolchain's headers. `tools/clang_tidy.py` uses the system
-clang-tidy with a rewritten `compile_commands.json` instead.
+understand the toolchain's headers. `make tidy` runs `tools/clang_tidy.py`,
+which uses the system clang-tidy with a rewritten `compile_commands.json`
+instead. Single files can be checked with `tools/clang_tidy.py <file>`.
