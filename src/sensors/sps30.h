@@ -2,15 +2,14 @@
 
 #include <cmath>
 
-#include <Adafruit_SHT4x.h>
-
 #include "core/readings.h"
 #include "sensors/sensor.h"
 
 namespace roomsense {
 
-// Temperature and humidity sensor (Sensirion SHT45, I2C).
-class Sht45 : public Sensor {
+// Particulate matter sensor (Sensirion SPS30, I2C). Reports mass
+// concentrations for PM1.0, PM2.5, PM4.0 and PM10 in µg/m³.
+class Sps30 : public Sensor {
  public:
   const char* Name() const override;
   bool Init() override;
@@ -20,9 +19,10 @@ class Sht45 : public Sensor {
  private:
   void Invalidate();
 
-  Adafruit_SHT4x sht_;
-  float temperature_ = NAN;
-  float humidity_ = NAN;
+  float mc_1p0_ = NAN;
+  float mc_2p5_ = NAN;
+  float mc_4p0_ = NAN;
+  float mc_10p0_ = NAN;
   bool ok_ = false;
 };
 

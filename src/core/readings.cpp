@@ -1,13 +1,25 @@
-#include "readings.h"
+#include "core/readings.h"
 
+#include <functional>
+#include <mutex>
 
-void ReadingsStore::update(const std::function<void(Readings &)> &fn) {
-    std::lock_guard<std::mutex> lock(mutex_);
-    fn(data_);
+namespace roomsense {
+
+ReadingsStore& ReadingsStore::Instance() {
+  // Intentionally never destroyed: objects with static storage duration must be
+  // trivially destructible, which std::mutex is not.
+  static ReadingsStore& store = *new ReadingsStore();
+  return store;
 }
 
-Readings ReadingsStore::snapshot() {
-    std::lock_guard<std::mutex> lock(mutex_);
-    Readings copy = data_;
-    return copy;
+void ReadingsStore::Update(const std::function<void(Readings&)>& updater) {
+  const std::scoped_lock lock(mutex_);
+  updater(data_);
 }
+
+Readings ReadingsStore::Snapshot() const {
+  const std::scoped_lock lock(mutex_);
+  return data_;
+}
+
+}  // namespace roomsense
