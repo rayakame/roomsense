@@ -21,8 +21,10 @@ bool Veml7700::Init() {
 }
 
 bool Veml7700::Read() {
+  if (!ok_) {
+    return false;
+  }
   lux_ = veml_.readLux(VEML_LUX_AUTO);
-  ok_ = true;
   return true;
 }
 

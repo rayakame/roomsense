@@ -1,6 +1,7 @@
 # Google C++ Style Guide. Project-specific deviations are listed in STYLE.md.
 BasedOnStyle: Google
 ColumnLimit: 100
+WrapNamespaceBodyWithEmptyLines: Always
 DerivePointerAlignment: false
 PointerAlignment: Left
 IncludeBlocks: Regroup

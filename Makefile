@@ -14,9 +14,8 @@ ENV ?= feather_s3
 CLANG_FORMAT ?= clang-format
 TIDY_FLAGS ?=
 
-# src/main.cpp is the old monolithic sketch and not migrated to the sensor
-# modules yet. Remove it from here once that is done.
-EXCLUDE := src/main.cpp
+# Files below src/ or include/ that should not be formatted or checked.
+EXCLUDE :=
 
 SOURCES := $(filter-out $(EXCLUDE),$(shell find src include -name '*.cpp' -o -name '*.h'))
 CPP_SOURCES := $(filter %.cpp,$(SOURCES))
