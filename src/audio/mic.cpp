@@ -1,4 +1,4 @@
-#include "mic.h"
+#include "audio/mic.h"
 
 #include <array>
 
