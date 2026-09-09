@@ -9,6 +9,7 @@
 
 #include "core/identity.h"
 #include "core/settings.h"
+#include "core/status_led.h"
 
 namespace roomsense {
 namespace {
@@ -100,6 +101,7 @@ void RunProvisioning() {
 
   if (BootButtonHeld()) {
     Serial.println("Provisioning: factory reset");
+    ShowFactoryReset();
     manager.resetSettings();
     SettingsStore::Instance().Clear();
   }
@@ -128,17 +130,30 @@ void RunProvisioning() {
   manager.addParameter(&pass);
   manager.setSaveParamsCallback([&] { SaveFromForm(name, host, port, user, pass); });
 
-  const bool need_portal = !manager.getWiFiIsSaved() || !SettingsStore::Instance().IsConfigured();
+  WiFiClass::mode(WIFI_STA);
+  const bool wifi_saved = manager.getWiFiIsSaved();
+  const bool configured = SettingsStore::Instance().IsConfigured();
+  Serial.printf("Provisioning: wifi_saved=%d configured=%d\n", static_cast<int>(wifi_saved),
+                static_cast<int>(configured));
+  const bool need_portal = !wifi_saved || !configured;
   if (need_portal) {
     Serial.printf("Provisioning: starting portal %s\n", Hostname().c_str());
-    if (!manager.startConfigPortal(Hostname().c_str())) {
+    SetSetupActive(true);
+    const bool connected = manager.startConfigPortal(Hostname().c_str());
+    SetSetupActive(false);
+    if (!connected) {
       Serial.println("Provisioning: portal timed out, restarting");
       ESP.restart();
     }
+    SetNetworkState(NetState::kConnected);
   } else {
     manager.setEnableConfigPortal(false);
-    if (!manager.autoConnect(Hostname().c_str())) {
+    SetNetworkState(NetState::kConnecting);
+    if (manager.autoConnect(Hostname().c_str())) {
+      SetNetworkState(NetState::kConnected);
+    } else {
       Serial.println("Provisioning: WiFi not reachable, continuing offline");
+      SetNetworkState(NetState::kDisconnected);
     }
   }
 

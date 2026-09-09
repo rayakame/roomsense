@@ -8,6 +8,7 @@
 #include "core/identity.h"
 #include "core/readings.h"
 #include "core/settings.h"
+#include "core/status_led.h"
 #include "sensors/registry.h"
 
 namespace roomsense {
@@ -17,10 +18,15 @@ namespace {
 void SensorTask(void* /*unused*/) {
   TickType_t last_wake = xTaskGetTickCount();
   for (;;) {
+    bool fault = false;
     for (Sensor* sensor : AllSensors()) {
       sensor->Poll();
       ReadingsStore::Instance().Update([sensor](Readings& readings) { sensor->Apply(readings); });
+      // Only a sensor that worked before counts as a fault. One that was never
+      // found is simply not installed.
+      fault = fault || (sensor->HasBeenOk() && !sensor->IsOk());
     }
+    SetSensorFault(fault);
     ReadingsStore::Instance().Update([](Readings& readings) { readings.updated_at = millis(); });
     if (xTaskDelayUntil(&last_wake, pdMS_TO_TICKS(kSensorIntervalMs)) == pdFALSE) {
       // An init attempt took longer than one interval. Start a fresh interval
@@ -37,6 +43,7 @@ void SensorTask(void* /*unused*/) {
 void setup() {
   Serial.begin(115200);
   Serial.setTxTimeoutMs(0);
+  roomsense::StartStatusLedTask();
   delay(2000);
 
   roomsense::SettingsStore::Instance().Load();

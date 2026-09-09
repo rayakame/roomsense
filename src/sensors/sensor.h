@@ -18,6 +18,9 @@ class Sensor {
   void Poll();
 
   bool IsOk() const { return state_ == State::kOk; }
+  // True if the sensor worked at some point since boot. A sensor that is not
+  // ok but never was is missing, not broken.
+  bool HasBeenOk() const { return has_been_ok_; }
   virtual const char* Name() const = 0;
   // Copies the last measurement into `readings`.
   virtual void Apply(Readings& readings) const = 0;
@@ -33,6 +36,7 @@ class Sensor {
   void Fail();
 
   State state_ = State::kUninitialized;
+  bool has_been_ok_ = false;
   uint32_t next_init_attempt_ = 0;
 };
 

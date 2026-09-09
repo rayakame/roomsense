@@ -29,6 +29,7 @@ void Sensor::Poll() {
   if (DoInit()) {
     Serial.printf("%s: ready\n", Name());
     state_ = State::kOk;
+    has_been_ok_ = true;
     return;
   }
   // Only report the first failure, further attempts would just repeat it.
