@@ -5,7 +5,6 @@ namespace roomsense {
 
 enum class NetState : uint8_t { kDisconnected, kConnecting, kConnected };
 
-
 void StartStatusLedTask();
 
 // The config portal is open and waits for the user.
