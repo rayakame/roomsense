@@ -1,9 +1,13 @@
 #include "audio/mic.h"
+#include "net/provisioning.h"
 #include <Arduino.h>
+#include <WiFi.h>
 #include <Wire.h>
 
 #include "config.h"
+#include "core/identity.h"
 #include "core/readings.h"
+#include "core/settings.h"
 #include "sensors/registry.h"
 
 namespace roomsense {
@@ -35,6 +39,11 @@ void setup() {
   Serial.setTxTimeoutMs(0);
   delay(2000);
 
+  roomsense::SettingsStore::Instance().Load();
+  Serial.printf("roomsense %s (%s), configured=%d\n", roomsense::DeviceId().c_str(),
+                roomsense::Hostname().c_str(),
+                static_cast<int>(roomsense::SettingsStore::Instance().IsConfigured()));
+
   pinMode(I2C_POWER, OUTPUT);
   digitalWrite(I2C_POWER, HIGH);
   delay(100);
@@ -43,6 +52,9 @@ void setup() {
 
   xTaskCreatePinnedToCore(roomsense::SensorTask, "sensors", 8192, nullptr, 1, nullptr, 1);
   roomsense::StartMicTask();
+
+  roomsense::RunProvisioning();
+  Serial.printf("WiFi %s  IP %s\n", WiFi.SSID().c_str(), WiFi.localIP().toString().c_str());
 }
 
 void loop() {
