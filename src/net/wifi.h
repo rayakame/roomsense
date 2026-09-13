@@ -1,8 +1,10 @@
-//
-// Created by christopher on 13.09.26.
-//
+#pragma once
 
-#ifndef ROOMSENSE_WIFI_H
-#define ROOMSENSE_WIFI_H
+namespace roomsense {
 
-#endif //ROOMSENSE_WIFI_H
+// Keeps the WiFi connection up. Call once per net tick, never blocks.
+void WifiTick();
+bool WifiIsConnected();
+int WifiRssi();
+
+}  // namespace roomsense

@@ -1,8 +1,7 @@
-//
-// Created by christopher on 13.09.26.
-//
+#pragma once
 
-#ifndef ROOMSENSE_NET_TASK_H
-#define ROOMSENSE_NET_TASK_H
+namespace roomsense {
 
-#endif //ROOMSENSE_NET_TASK_H
+void StartNetTask();
+
+}

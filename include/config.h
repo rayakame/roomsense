@@ -20,4 +20,13 @@ constexpr uint32_t kMicSampleRate = 48000;
 constexpr int kMicBlockSamples = kMicSampleRate / 8;  // 125 ms
 constexpr int kMicBlocksPerSecond = 8;
 
+// Firmware version, published with every state message.
+constexpr const char* kFirmwareVersion = "0.1.0";
+
+// Network task timing.
+constexpr uint32_t kNetTickMs = 100;
+constexpr uint32_t kStatePublishIntervalMs = 10 * 1000;
+constexpr uint32_t kWifiRetryMs = 15 * 1000;
+constexpr uint32_t kMqttRetryMs = 5 * 1000;
+
 }  // namespace roomsense

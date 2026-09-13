@@ -1,14 +1,15 @@
-#include "audio/mic.h"
-#include "net/provisioning.h"
 #include <Arduino.h>
 #include <WiFi.h>
 #include <Wire.h>
 
+#include "audio/mic.h"
 #include "config.h"
 #include "core/identity.h"
 #include "core/readings.h"
 #include "core/settings.h"
 #include "core/status_led.h"
+#include "net/net_task.h"
+#include "net/provisioning.h"
 #include "sensors/registry.h"
 
 namespace roomsense {
@@ -62,6 +63,7 @@ void setup() {
 
   roomsense::RunProvisioning();
   Serial.printf("WiFi %s  IP %s\n", WiFi.SSID().c_str(), WiFi.localIP().toString().c_str());
+  roomsense::StartNetTask();
 }
 
 void loop() {
@@ -74,5 +76,5 @@ void loop() {
       static_cast<int>(readings.sht_ok), static_cast<int>(readings.veml_ok),
       static_cast<int>(readings.dps_ok), static_cast<int>(readings.sgp_ok),
       static_cast<int>(readings.sps_ok), static_cast<int>(readings.mic_ok));
-  delay(2000);
+  delay(10000);
 }
