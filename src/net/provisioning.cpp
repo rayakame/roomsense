@@ -22,8 +22,11 @@ constexpr int kConnectTimeoutS = 20;
 constexpr const char* kValidationScript = R"html(
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-  var form = document.querySelector("form[action='paramsave']");
-  if (!form) return;
+  // The MQTT fields render on the WiFi page, so find the form via a field
+  // instead of hard-coding the form action.
+  var anchor = document.getElementById('name');
+  if (!anchor || !anchor.form) return;
+  var form = anchor.form;
   form.addEventListener('submit', function (event) {
     var name = document.getElementById('name');
     var host = document.getElementById('host');
@@ -96,8 +99,14 @@ void RunProvisioning() {
   manager.setConfigPortalTimeout(kPortalTimeoutS);
   manager.setConnectTimeout(kConnectTimeoutS);
   manager.setCustomHeadElement(kValidationScript);
-  std::vector<const char*> menu = {"wifi", "param", "info", "exit"};
+  // No separate parameter page: WiFiManager then renders the MQTT fields on
+  // the WiFi page, so one save closes the portal. A save on the parameter page
+  // does not, startConfigPortal() only returns once WiFi is up.
+  std::vector<const char*> menu = {"wifi", "info", "exit"};
   manager.setMenu(menu);
+  // Also leave the portal when the new credentials do not work, instead of
+  // silently staying open.
+  manager.setBreakAfterConfig(true);
 
   if (BootButtonHeld()) {
     Serial.println("Provisioning: factory reset");
@@ -145,12 +154,12 @@ void RunProvisioning() {
       Serial.println("Provisioning: portal timed out, restarting");
       ESP.restart();
     }
-    SetNetworkState(NetState::kConnected);
+    SetNetworkState(NetState::kConnecting);
   } else {
     manager.setEnableConfigPortal(false);
     SetNetworkState(NetState::kConnecting);
     if (manager.autoConnect(Hostname().c_str())) {
-      SetNetworkState(NetState::kConnected);
+      SetNetworkState(NetState::kConnecting);
     } else {
       Serial.println("Provisioning: WiFi not reachable, continuing offline");
       SetNetworkState(NetState::kDisconnected);
