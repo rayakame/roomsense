@@ -7,6 +7,7 @@
 #include <Arduino.h>
 #include <WiFiManager.h>
 
+#include "core/button.h"
 #include "core/identity.h"
 #include "core/settings.h"
 #include "core/status_led.h"
@@ -14,8 +15,6 @@
 namespace roomsense {
 namespace {
 
-constexpr int kBootButtonPin = 0;
-constexpr int kBootHoldMs = 3000;
 constexpr int kPortalTimeoutS = 600;
 constexpr int kConnectTimeoutS = 20;
 
@@ -49,17 +48,6 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 </script>
 )html";
-
-bool BootButtonHeld() {
-  pinMode(kBootButtonPin, INPUT_PULLUP);
-  for (uint32_t held = 0; held < kBootHoldMs; held += 100) {
-    if (digitalRead(kBootButtonPin) == HIGH) {
-      return false;
-    }
-    delay(100);
-  }
-  return true;
-}
 
 bool IsValidDeviceName(const std::string& name) {
   if (name.empty() || name.size() > 32) {
@@ -108,13 +96,6 @@ void RunProvisioning() {
   // silently staying open.
   manager.setBreakAfterConfig(true);
 
-  if (BootButtonHeld()) {
-    Serial.println("Provisioning: factory reset");
-    ShowFactoryReset();
-    manager.resetSettings();
-    SettingsStore::Instance().Clear();
-  }
-
   const Settings& cur = SettingsStore::Instance().Get();
   const std::string port_str = std::to_string(cur.mqtt_port);
   WiFiManagerParameter name(
@@ -142,9 +123,11 @@ void RunProvisioning() {
   WiFiClass::mode(WIFI_STA);
   const bool wifi_saved = manager.getWiFiIsSaved();
   const bool configured = SettingsStore::Instance().IsConfigured();
-  Serial.printf("Provisioning: wifi_saved=%d configured=%d\n", static_cast<int>(wifi_saved),
-                static_cast<int>(configured));
-  const bool need_portal = !wifi_saved || !configured;
+  const bool portal_requested = PortalRequested();
+  Serial.printf("Provisioning: wifi_saved=%d configured=%d requested=%d\n",
+                static_cast<int>(wifi_saved), static_cast<int>(configured),
+                static_cast<int>(portal_requested));
+  const bool need_portal = !wifi_saved || !configured || portal_requested;
   if (need_portal) {
     Serial.printf("Provisioning: starting portal %s\n", Hostname().c_str());
     SetSetupActive(true);

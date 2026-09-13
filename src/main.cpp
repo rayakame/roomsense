@@ -4,6 +4,7 @@
 
 #include "audio/mic.h"
 #include "config.h"
+#include "core/button.h"
 #include "core/identity.h"
 #include "core/readings.h"
 #include "core/settings.h"
@@ -45,6 +46,8 @@ void setup() {
   Serial.begin(115200);
   Serial.setTxTimeoutMs(0);
   roomsense::StartStatusLedTask();
+  // Started early so the button still works if something later hangs.
+  roomsense::StartButtonTask();
   delay(2000);
 
   roomsense::SettingsStore::Instance().Load();

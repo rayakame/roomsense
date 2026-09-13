@@ -5,6 +5,11 @@ namespace roomsense {
 
 enum class NetState : uint8_t { kDisconnected, kConnecting, kConnected };
 
+// What the button will do if released now. Overrides everything else, so the
+// user sees the effect of holding before committing to it.
+enum class ButtonHint : uint8_t { kNone, kPortal, kFactoryReset };
+void SetButtonHint(ButtonHint hint);
+
 void StartStatusLedTask();
 
 // The config portal is open and waits for the user.

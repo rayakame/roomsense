@@ -38,6 +38,7 @@ std::atomic<bool> sensor_fault = false;
 std::atomic<bool> fatal_error = false;
 std::atomic<uint32_t> factory_reset_until = 0;
 std::atomic<uint32_t> boot_until = 0;
+std::atomic<ButtonHint> button_hint = ButtonHint::kNone;
 
 // `color` for `on_ms` out of every `period_ms`, otherwise off.
 Rgb Blink(uint32_t now, Rgb color, uint32_t period_ms, uint32_t on_ms) {
@@ -45,6 +46,14 @@ Rgb Blink(uint32_t now, Rgb color, uint32_t period_ms, uint32_t on_ms) {
 }
 
 Rgb ColorFor(uint32_t now) {
+  switch (button_hint.load()) {
+    case ButtonHint::kPortal:
+      return kBlue;
+    case ButtonHint::kFactoryReset:
+      return kRed;
+    case ButtonHint::kNone:
+      break;
+  }
   if (!Reached(now, factory_reset_until.load())) {
     return kRed;
   }
@@ -98,6 +107,8 @@ void StartStatusLedTask() {
   disconnected_since = now;
   xTaskCreatePinnedToCore(StatusLedTask, "status_led", 3072, nullptr, 1, nullptr, 1);
 }
+
+void SetButtonHint(ButtonHint hint) { button_hint = hint; }
 
 void SetSetupActive(bool active) { setup_active = active; }
 

@@ -29,4 +29,10 @@ constexpr uint32_t kStatePublishIntervalMs = 10 * 1000;
 constexpr uint32_t kWifiRetryMs = 15 * 1000;
 constexpr uint32_t kMqttRetryMs = 5 * 1000;
 
+// Setup button, wired between the pin and GND, internal pull-up enabled.
+constexpr int kButtonPin = 10;
+constexpr uint32_t kButtonTickMs = 20;
+constexpr uint32_t kButtonPortalHoldMs = 2000;
+constexpr uint32_t kButtonFactoryResetHoldMs = 5000;
+
 }  // namespace roomsense
