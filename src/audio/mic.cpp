@@ -2,10 +2,10 @@
 
 #include <array>
 
-#include "audio/level_meter.h"
 #include <Arduino.h>
 #include <driver/i2s_std.h>
 
+#include "audio/level_meter.h"
 #include "config.h"
 
 namespace roomsense {

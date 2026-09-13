@@ -7,7 +7,6 @@
 #include <span>
 
 #include "audio/sos_filter.h"
-
 #include "config.h"
 #include "core/readings.h"
 

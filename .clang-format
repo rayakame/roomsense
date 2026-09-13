@@ -13,7 +13,7 @@ IncludeCategories:
   - Regex: '^<[a-z_]+>$'
     Priority: 2
   # 4. Project headers
-  - Regex: '^"(core|sensors)/'
+  - Regex: '^"(audio|core|net|sensors)/'
     Priority: 4
   - Regex: '^"config\.h"$'
     Priority: 4

@@ -5,7 +5,6 @@
 #include <span>
 
 #include "audio/sos_filter.h"
-
 #include "config.h"
 
 namespace roomsense {
