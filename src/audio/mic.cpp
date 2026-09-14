@@ -7,6 +7,7 @@
 
 #include "audio/level_meter.h"
 #include "config.h"
+#include "core/diagnostics.h"
 
 namespace roomsense {
 namespace {
@@ -41,6 +42,7 @@ bool InitI2s() {
 }
 
 void MicTask(void* /*unused*/) {
+  RegisterTask(TaskId::kMic, xTaskGetCurrentTaskHandle());
   static std::array<int32_t, kMicBlockSamples> block;
   static LevelMeter level_meter;
 

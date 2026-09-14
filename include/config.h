@@ -21,11 +21,17 @@ constexpr int kMicBlockSamples = kMicSampleRate / 8;  // 125 ms
 constexpr int kMicBlocksPerSecond = 8;
 
 // Firmware version, published with every state message.
-constexpr const char* kFirmwareVersion = "0.1.0";
+constexpr const char* kFirmwareVersion = "0.2.0";
 
 // Network task timing.
 constexpr uint32_t kNetTickMs = 100;
 constexpr uint32_t kStatePublishIntervalMs = 10 * 1000;
+// Identity, retained. Repeated so the time series does not age away and
+// queries do not need last_over_time().
+constexpr uint32_t kInfoPublishIntervalMs = 10 * 60 * 1000;
+// Runtime health. Heap and temperature move slowly, a faster rhythm would
+// only store noise.
+constexpr uint32_t kDiagPublishIntervalMs = 60 * 1000;
 constexpr uint32_t kWifiRetryMs = 15 * 1000;
 constexpr uint32_t kMqttRetryMs = 5 * 1000;
 

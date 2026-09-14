@@ -5,6 +5,7 @@
 #include "audio/mic.h"
 #include "config.h"
 #include "core/button.h"
+#include "core/diagnostics.h"
 #include "core/identity.h"
 #include "core/readings.h"
 #include "core/settings.h"
@@ -18,6 +19,7 @@ namespace roomsense {
 namespace {
 
 void SensorTask(void* /*unused*/) {
+  RegisterTask(TaskId::kSensor, xTaskGetCurrentTaskHandle());
   TickType_t last_wake = xTaskGetTickCount();
   for (;;) {
     bool fault = false;

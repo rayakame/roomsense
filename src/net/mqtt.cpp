@@ -6,8 +6,10 @@
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
+#include <WiFi.h>
 
 #include "config.h"
+#include "core/diagnostics.h"
 #include "core/identity.h"
 #include "core/readings.h"
 #include "core/settings.h"
@@ -21,6 +23,8 @@ namespace {
 // Topics below base_topic_.
 constexpr const char* kStatusSuffix = "/status";
 constexpr const char* kStateSuffix = "/state";
+constexpr const char* kInfoSuffix = "/info";
+constexpr const char* kDiagSuffix = "/diag";
 
 // Retained status payloads. "offline" is also the last will, so an
 // unannounced disappearance is visible on the broker.
@@ -28,8 +32,10 @@ constexpr const char* kStatusOnline = "online";
 constexpr const char* kStatusOffline = "offline";
 constexpr uint8_t kStatusQos = 1;
 
-// The state JSON is around 300 bytes, this leaves room for more fields.
+// The largest message is around 400 bytes, this leaves room for more fields.
 constexpr uint16_t kBufferSize = 1024;
+
+constexpr uint32_t kBytesPerMb = 1024 * 1024;
 
 // Human readable form of PubSubClient::state().
 const char* StateName(int state) {
@@ -119,6 +125,10 @@ bool Mqtt::Connect() {
   client_.publish(status_topic.c_str(), kStatusOnline, /*retained=*/true);
   SetNetworkState(NetState::kConnected);
   was_connected_ = true;
+  if (ever_connected_) {
+    CountMqttReconnect();
+  }
+  ever_connected_ = true;
   return true;
 }
 
@@ -152,13 +162,73 @@ bool Mqtt::PublishState(const Readings& readings) {
 
   std::string payload;
   serializeJson(doc, payload);
-  const std::string topic = base_topic_ + kStateSuffix;
-  if (!client_.publish(topic.c_str(), payload.c_str())) {
-    Serial.printf("MQTT: publishing %zu bytes to %s failed (%s)\n", payload.size(), topic.c_str(),
-                  StateName(client_.state()));
-    return false;
+  return Publish(base_topic_ + kStateSuffix, payload, /*retained=*/false);
+}
+
+bool Mqtt::PublishInfo() {
+  JsonDocument doc;
+  // A constant 1 turns the message into an info metric whose value carries no
+  // meaning; everything interesting sits in the string fields.
+  doc["info"] = 1;
+  doc["fw"] = kFirmwareVersion;
+  doc["built"] = BuildTimestamp();
+  doc["id"] = DeviceId();
+  doc["chip"] = ESP.getChipModel();
+  // The core reports the revision as major * 100 + minor.
+  const uint16_t revision = ESP.getChipRevision();
+  doc["rev"] = std::to_string(revision / 100) + "." + std::to_string(revision % 100);
+  doc["cpu_mhz"] = std::to_string(ESP.getCpuFreqMHz());
+  doc["flash_mb"] = std::to_string(ESP.getFlashChipSize() / kBytesPerMb);
+  doc["sdk"] = ESP.getSdkVersion();
+  doc["reset_reason"] = ResetReasonName();
+  // toString() returns a temporary, so copy before ArduinoJson sees it.
+  doc["ip"] = std::string(WiFi.localIP().toString().c_str());
+  doc["bssid"] = std::string(WiFi.BSSIDstr().c_str());
+
+  std::string payload;
+  serializeJson(doc, payload);
+  return Publish(base_topic_ + kInfoSuffix, payload, /*retained=*/true);
+}
+
+bool Mqtt::PublishDiag() {
+  JsonDocument doc;
+  doc["heap_free"] = ESP.getFreeHeap();
+  doc["heap_min"] = ESP.getMinFreeHeap();
+  doc["heap_largest"] = ESP.getMaxAllocHeap();
+  doc["cpu_temp"] = roundf(temperatureRead() * 10.0f) / 10.0f;
+  doc["stack_sensor"] = TaskStackFreeBytes(TaskId::kSensor);
+  doc["stack_mic"] = TaskStackFreeBytes(TaskId::kMic);
+  doc["stack_net"] = TaskStackFreeBytes(TaskId::kNet);
+  doc["wifi_reconnects"] = WifiReconnects();
+  doc["mqtt_reconnects"] = MqttReconnects();
+  doc["publish_failures"] = PublishFailures();
+  doc["sensor_retries"] = SensorRetries();
+  doc["wifi_channel"] = WiFi.channel();
+
+  // Per sensor health as 0/1. Without these a null value in the state message
+  // cannot be told apart from "not installed" or "still warming up".
+  const Readings readings = ReadingsStore::Instance().Snapshot();
+  doc["ok_sht"] = readings.sht_ok ? 1 : 0;
+  doc["ok_veml"] = readings.veml_ok ? 1 : 0;
+  doc["ok_dps"] = readings.dps_ok ? 1 : 0;
+  doc["ok_sgp"] = readings.sgp_ok ? 1 : 0;
+  doc["ok_sps"] = readings.sps_ok ? 1 : 0;
+  doc["ok_scd"] = readings.scd_ok ? 1 : 0;
+  doc["ok_mic"] = readings.mic_ok ? 1 : 0;
+
+  std::string payload;
+  serializeJson(doc, payload);
+  return Publish(base_topic_ + kDiagSuffix, payload, /*retained=*/false);
+}
+
+bool Mqtt::Publish(const std::string& topic, const std::string& payload, bool retained) {
+  if (client_.publish(topic.c_str(), payload.c_str(), retained)) {
+    return true;
   }
-  return true;
+  CountPublishFailure();
+  Serial.printf("MQTT: publishing %zu bytes to %s failed (%s)\n", payload.size(), topic.c_str(),
+                StateName(client_.state()));
+  return false;
 }
 
 }  // namespace roomsense

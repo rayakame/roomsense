@@ -5,6 +5,7 @@
 #include <Arduino.h>
 
 #include "config.h"
+#include "core/diagnostics.h"
 #include "core/time.h"
 
 namespace roomsense {
@@ -25,6 +26,11 @@ void Sensor::Poll() {
 
   if (!Reached(millis(), next_init_attempt_)) {
     return;
+  }
+  // Counted here, where a new init really starts. A sensor that was never
+  // found is not retrying, it is simply not installed.
+  if (has_been_ok_) {
+    CountSensorRetry();
   }
   if (DoInit()) {
     Serial.printf("%s: ready\n", Name());
