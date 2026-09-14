@@ -10,14 +10,22 @@ Checks: >
   modernize-*,
   performance-*,
   readability-*,
+  -clang-analyzer-cplusplus.NewDeleteLeaks,
   -misc-header-include-cycle,
   -misc-include-cleaner,
   -modernize-use-nodiscard,
   -modernize-use-trailing-return-type,
   -readability-magic-numbers,
   -readability-uppercase-literal-suffix
-WarningsAsErrors: ''
+# Any warning fails `make check`, so a clean run really means clean.
+WarningsAsErrors: '*'
 HeaderFilterRegex: '/roomsense/(src|include)/'
+# Library sources under .pio are not ours to fix. This covers the ordinary
+# checks; the path sensitive clang-analyzer ones ignore both header filters,
+# which is why NewDeleteLeaks is switched off in the list above: ArduinoJson
+# builds its nodes with placement new into a union, which the analyzer reads
+# as a leak.
+ExcludeHeaderFilterRegex: '.*/\.pio/.*'
 FormatStyle: file
 CheckOptions:
   readability-identifier-naming.NamespaceCase: lower_case
