@@ -22,6 +22,8 @@ class Sgp41 : public Sensor {
   bool DoRead() override;
   void Invalidate() override;
 
+  bool Condition();
+
   void RestoreBaseline();
   void SaveBaseline();
 
@@ -29,6 +31,12 @@ class Sgp41 : public Sensor {
   // Both algorithms assume one sample per second (see kSensorIntervalMs).
   VocAlgorithm voc_algo_;
   NOxGasIndexAlgorithm nox_algo_;
+  // Conditioning cycles still owed, one per DoRead().
+  int conditioning_left_ = 0;
+  // Armed with the first conditioning command, because that is when the
+  // datasheet's window starts.
+  bool conditioning_started_ = false;
+  Deadline conditioning_limit_;
   // The algorithms see no raw signals before this has passed.
   Deadline warmup_;
   // Loaded once. After a re-init the algorithm knows more than NVS does.

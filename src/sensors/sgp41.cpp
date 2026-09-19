@@ -21,8 +21,15 @@ namespace {
 constexpr uint16_t kDefaultRhTicks = 0x8000;
 constexpr uint16_t kDefaultTTicks = 0x6666;
 
-// The datasheet limits conditioning to 10 s.
-constexpr int kConditioningSeconds = 10;
+// The datasheet wants conditioning at 1 Hz, and the sensor task already polls
+// at that rate, so one command per cycle needs no blocking loop and leaves the
+// other sensors their turn.
+constexpr int kConditioningCycles = 10;
+
+// Conditioning is a mode, not a command: the heater stays in it until the
+// first measurement. Exceeding 10 s damages the sensing material, and we can
+// only check at cycle boundaries, so leave one cycle of margin.
+constexpr uint32_t kConditioningMaxMs = 10000 - kSensorIntervalMs;
 
 // After conditioning the raw signals still drift while the heater settles.
 // Feeding them into the gas index algorithms would corrupt the learned
@@ -47,23 +54,37 @@ const char* Sgp41::Name() const { return "SGP41"; }
 
 bool Sgp41::DoInit() {
   sgp_.begin(Wire);
+  // Conditioning and the serial number are idle mode commands. After a read
+  // failure the heater is still running, so stop it first. Fails harmlessly
+  // when the sensor is gone; the serial number below is what detects that.
+  sgp_.turnHeaterOff();
 
   std::array<uint16_t, 3> serial = {};
   if (sgp_.getSerialNumber(serial.data()) != 0) {
     return false;
   }
 
-  // The heater needs conditioning after every power-up, so this also runs
-  // again after a reconnect.
-  for (int i = 0; i < kConditioningSeconds; i++) {
-    uint16_t sraw_voc = 0;
-    if (sgp_.executeConditioning(kDefaultRhTicks, kDefaultTTicks, sraw_voc) != 0) {
-      return false;
-    }
-    delay(1000);
-  }
   RestoreBaseline();
-  warmup_.ArmIn(kWarmupMs);
+  // The heater needs conditioning after every power-up, so this also runs
+  // again after a reconnect. DoRead() carries it out, one command per cycle.
+  conditioning_left_ = kConditioningCycles;
+  conditioning_started_ = false;
+  return true;
+}
+
+// One conditioning command, sent in place of a measurement.
+bool Sgp41::Condition() {
+  uint16_t sraw_voc = 0;
+  if (sgp_.executeConditioning(kDefaultRhTicks, kDefaultTTicks, sraw_voc) != 0) {
+    return false;
+  }
+  if (!conditioning_started_) {
+    conditioning_started_ = true;
+    conditioning_limit_.ArmIn(kConditioningMaxMs);
+  }
+  if (--conditioning_left_ == 0) {
+    warmup_.ArmIn(kWarmupMs);
+  }
   return true;
 }
 
@@ -95,6 +116,16 @@ void Sgp41::SaveBaseline() {
 }
 
 bool Sgp41::DoRead() {
+  if (conditioning_left_ > 0) {
+    if (!conditioning_started_ || !conditioning_limit_.Elapsed()) {
+      return Condition();
+    }
+    // Out of time with cycles to spare. Sending another command would only
+    // extend the mode, while measuring is what ends it, so measure now.
+    conditioning_left_ = 0;
+    warmup_.ArmIn(kWarmupMs);
+  }
+
   // Compensate with the latest SHT45 values, fall back to the defaults while
   // none are available.
   uint16_t rh_ticks = kDefaultRhTicks;
