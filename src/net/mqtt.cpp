@@ -103,7 +103,7 @@ void Mqtt::Tick() {
     next_attempt_.ArmIn(kMqttRetryMs);
     Serial.printf("MQTT: connecting to %s:%u failed (%s), retrying in %u s\n",
                   settings.mqtt_host.c_str(), settings.mqtt_port, StateName(client_.state()),
-                  kMqttRetryMs / 1000);
+                  static_cast<unsigned>(kMqttRetryMs / 1000));
     return;
   }
   Serial.printf("MQTT: connected to %s:%u, topic %s\n", settings.mqtt_host.c_str(),

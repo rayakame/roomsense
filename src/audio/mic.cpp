@@ -64,41 +64,53 @@ void MicTask(void* /*unused*/) {
   static LevelMeter level_meter;
 
   bool running = false;
-  bool failure_reported = false;
+  // Announce a working microphone and a broken one once each, not on every
+  // turn of a restart loop that never produces a sample.
+  bool announced = false;
+  bool complained = false;
   int read_errors = 0;
 
   for (;;) {
     // Down: keep trying, the same way a missing I2C sensor does.
     if (!running) {
       if (StartI2s()) {
-        Serial.println("MIC: ready");
         running = true;
-        failure_reported = false;
         read_errors = 0;
         continue;
       }
       level_meter.Invalidate();
-      // Only the first failure is worth a line, the retries would repeat it.
-      if (!failure_reported) {
-        Serial.printf("MIC: I2S start failed, retrying every %u s\n", kMicRetryMs / 1000);
-        failure_reported = true;
+      if (!complained) {
+        Serial.printf("MIC: I2S start failed, retrying every %u s\n",
+                      static_cast<unsigned>(kMicRetryMs / 1000));
+        complained = true;
       }
       vTaskDelay(pdMS_TO_TICKS(kMicRetryMs));
       continue;
     }
 
     std::size_t bytes_read = 0;
-    const esp_err_t err = i2s_channel_read(rx_handle, block.data(), sizeof(block), &bytes_read,
-                                           pdMS_TO_TICKS(kMicReadTimeoutMs));
+    // The driver converts to ticks itself, the parameter is milliseconds.
+    const esp_err_t err =
+        i2s_channel_read(rx_handle, block.data(), sizeof(block), &bytes_read, kMicReadTimeoutMs);
     if (err == ESP_OK && bytes_read == sizeof(block)) {
       read_errors = 0;
+      // A running channel proves nothing; a block of samples does.
+      if (!announced) {
+        Serial.println("MIC: ready");
+        announced = true;
+        complained = false;
+      }
       level_meter.Process(block);
       continue;
     }
 
     level_meter.Invalidate();
+    announced = false;
     if (++read_errors >= kMicMaxReadErrors) {
-      Serial.printf("MIC: %d failed reads, restarting the channel\n", read_errors);
+      if (!complained) {
+        Serial.printf("MIC: %d failed reads, restarting the channel\n", read_errors);
+        complained = true;
+      }
       StopI2s();
       running = false;
       continue;

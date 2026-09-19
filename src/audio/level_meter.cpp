@@ -101,6 +101,9 @@ void LevelMeter::Publish() const {
 }
 
 void LevelMeter::Invalidate() {
+  // The stream has a hole, so the filter history no longer belongs to it.
+  mic_eq_.Reset();
+  a_weighting_.Reset();
   sum_power_ = 0;
   max_power_ = 0;
   blocks_ = 0;
