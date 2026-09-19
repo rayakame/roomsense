@@ -3,6 +3,7 @@
 #include <cstdint>
 
 #include "core/readings.h"
+#include "core/time.h"
 
 namespace roomsense {
 
@@ -37,7 +38,7 @@ class Sensor {
 
   State state_ = State::kUninitialized;
   bool has_been_ok_ = false;
-  uint32_t next_init_attempt_ = 0;
+  Deadline next_init_attempt_;
 };
 
 }  // namespace roomsense

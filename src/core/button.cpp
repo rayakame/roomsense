@@ -12,10 +12,15 @@
 namespace roomsense {
 namespace {
 
-// Survives a software restart because it is never initialized at startup, but
-// holds random data after a power loss. The magic value tells the two apart.
+// Never initialized at startup, so it survives a restart but not a power
+// loss. The magic value tells a real request from leftover noise.
 RTC_NOINIT_ATTR uint32_t portal_request;
 constexpr uint32_t kPortalRequestMagic = 0x504F5254;  // "PORT"
+
+// Samples in a row before a release counts. Pressing needs no debouncing at
+// second-long thresholds, but one bounce mid-hold would fire the short
+// action.
+constexpr int kReleaseSamples = 3;
 
 // Time for the serial output to leave the buffer before the chip restarts.
 constexpr uint32_t kFlushDelayMs = 200;
@@ -54,6 +59,7 @@ void ButtonTask(void* /*unused*/) {
   pinMode(kButtonPin, INPUT_PULLUP);
   uint32_t pressed_since = 0;
   bool was_pressed = false;
+  int released_samples = 0;
   for (;;) {
     const bool pressed = digitalRead(kButtonPin) == LOW;
     const uint32_t now = millis();
@@ -61,14 +67,15 @@ void ButtonTask(void* /*unused*/) {
       pressed_since = now;
     }
     if (pressed) {
-      // Measured in seconds, so a single glitch never reaches a threshold and
-      // no extra debouncing is needed.
+      released_samples = 0;
       SetButtonHint(HintFor(now - pressed_since));
-    } else if (was_pressed) {
+    } else if (was_pressed && ++released_samples >= kReleaseSamples) {
+      was_pressed = false;
+      released_samples = 0;
       SetButtonHint(ButtonHint::kNone);
       HandleRelease(now - pressed_since);
     }
-    was_pressed = pressed;
+    was_pressed = was_pressed || pressed;
     vTaskDelay(pdMS_TO_TICKS(kButtonTickMs));
   }
 }

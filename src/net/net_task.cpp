@@ -17,37 +17,35 @@ namespace {
 void NetTask(void* /*unused*/) {
   Serial.println("Net: task started");
   RegisterTask(TaskId::kNet, xTaskGetCurrentTaskHandle());
-  uint32_t next_state = 0;
-  uint32_t next_info = 0;
-  uint32_t next_diag = 0;
+  Deadline next_state;
+  Deadline next_info;
+  Deadline next_diag;
   bool was_connected = false;
   for (;;) {
     WifiTick();
     Mqtt::Instance().Tick();
-    const uint32_t now = millis();
-
     const bool connected = Mqtt::Instance().IsConnected();
     if (connected && !was_connected) {
       // A fresh connection starts with identity and values; health follows
       // after the first full interval.
-      next_info = now;
-      next_state = now;
-      next_diag = now + kDiagPublishIntervalMs;
+      next_info.Expire();
+      next_state.Expire();
+      next_diag.ArmIn(kDiagPublishIntervalMs);
     }
     was_connected = connected;
 
     if (connected) {
-      if (Reached(now, next_info)) {
+      if (next_info.Elapsed()) {
         Mqtt::Instance().PublishInfo();
-        next_info = now + kInfoPublishIntervalMs;
+        next_info.ArmIn(kInfoPublishIntervalMs);
       }
-      if (Reached(now, next_state)) {
+      if (next_state.Elapsed()) {
         Mqtt::Instance().PublishState(ReadingsStore::Instance().Snapshot());
-        next_state = now + kStatePublishIntervalMs;
+        next_state.ArmIn(kStatePublishIntervalMs);
       }
-      if (Reached(now, next_diag)) {
+      if (next_diag.Elapsed()) {
         Mqtt::Instance().PublishDiag();
-        next_diag = now + kDiagPublishIntervalMs;
+        next_diag.ArmIn(kDiagPublishIntervalMs);
       }
     }
     vTaskDelay(pdMS_TO_TICKS(kNetTickMs));

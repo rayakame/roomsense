@@ -24,7 +24,7 @@ void Sensor::Poll() {
     return;
   }
 
-  if (!Reached(millis(), next_init_attempt_)) {
+  if (!next_init_attempt_.Elapsed()) {
     return;
   }
   // Counted here, where a new init really starts. A sensor that was never
@@ -48,7 +48,7 @@ void Sensor::Poll() {
 void Sensor::Fail() {
   Invalidate();
   state_ = State::kFailed;
-  next_init_attempt_ = millis() + kSensorInitRetryMs;
+  next_init_attempt_.ArmIn(kSensorInitRetryMs);
 }
 
 }  // namespace roomsense

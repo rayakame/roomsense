@@ -7,6 +7,7 @@
 #include <WiFiClient.h>
 
 #include "core/readings.h"
+#include "core/time.h"
 
 namespace roomsense {
 
@@ -37,7 +38,7 @@ class Mqtt {
   // True once the first connection succeeded, so Connect() can tell a
   // reconnect from the initial one.
   bool ever_connected_ = false;
-  uint32_t next_attempt_ = 0;
+  Deadline next_attempt_;
   std::string base_topic_;
 };
 

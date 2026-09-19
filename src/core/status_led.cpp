@@ -40,6 +40,20 @@ std::atomic<uint32_t> factory_reset_until = 0;
 std::atomic<uint32_t> boot_until = 0;
 std::atomic<ButtonHint> button_hint = ButtonHint::kNone;
 
+// True while `deadline` lies ahead; 0 means unarmed. Clears a passed deadline
+// so the millis() wrap cannot revive it, without dropping a fresh one.
+bool Pending(uint32_t now, std::atomic<uint32_t>& deadline) {
+  uint32_t expires_at = deadline.load();
+  if (expires_at == 0) {
+    return false;
+  }
+  if (!Reached(now, expires_at)) {
+    return true;
+  }
+  deadline.compare_exchange_strong(expires_at, 0);
+  return false;
+}
+
 // `color` for `on_ms` out of every `period_ms`, otherwise off.
 Rgb Blink(uint32_t now, Rgb color, uint32_t period_ms, uint32_t on_ms) {
   return now % period_ms < on_ms ? color : kOff;
@@ -54,18 +68,19 @@ Rgb ColorFor(uint32_t now) {
     case ButtonHint::kNone:
       break;
   }
-  if (!Reached(now, factory_reset_until.load())) {
+  if (Pending(now, factory_reset_until)) {
     return kRed;
   }
-  if (!Reached(now, boot_until.load())) {
+  if (Pending(now, boot_until)) {
     return kWhite;
   }
   if (setup_active.load()) {
     return Blink(now, kBlue, 2000, 1000);
   }
   const NetState net = net_state.load();
-  const bool net_error =
-      net == NetState::kDisconnected && Reached(now, disconnected_since.load() + kNetErrorAfterMs);
+  // Unsigned, so the gap stays right across the whole millis() range.
+  const uint32_t disconnected_for = now - disconnected_since.load();
+  const bool net_error = net == NetState::kDisconnected && disconnected_for >= kNetErrorAfterMs;
   if (fatal_error.load() || net_error) {
     return Blink(now, kRed, 200, 100);
   }

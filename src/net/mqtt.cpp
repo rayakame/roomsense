@@ -75,13 +75,17 @@ Mqtt& Mqtt::Instance() {
 
 void Mqtt::Tick() {
   const bool wifi_up = WifiIsConnected();
-  // A dropped WiFi link leaves a dead socket behind that PubSubClient may
-  // still report as connected, so a missing link counts as a disconnect.
+  // PubSubClient may still call a socket alive after the link dropped, so a
+  // missing link counts as a disconnect.
   if (was_connected_ && (!wifi_up || !client_.connected())) {
     Serial.printf("MQTT: connection lost (%s)\n",
                   wifi_up ? StateName(client_.state()) : "WiFi down");
     client_.disconnect();
-    SetNetworkState(NetState::kConnecting);
+    if (wifi_up) {
+      // Only the broker is missing. With the link down WifiTick() already
+      // reported kDisconnected, and overwriting that would hide the outage.
+      SetNetworkState(NetState::kConnecting);
+    }
     was_connected_ = false;
   }
   if (!wifi_up) {
@@ -91,12 +95,12 @@ void Mqtt::Tick() {
     client_.loop();
     return;
   }
-  if (!Reached(millis(), next_attempt_)) {
+  if (!next_attempt_.Elapsed()) {
     return;
   }
   const Settings& settings = SettingsStore::Instance().Get();
   if (!Connect()) {
-    next_attempt_ = millis() + kMqttRetryMs;
+    next_attempt_.ArmIn(kMqttRetryMs);
     Serial.printf("MQTT: connecting to %s:%u failed (%s), retrying in %u s\n",
                   settings.mqtt_host.c_str(), settings.mqtt_port, StateName(client_.state()),
                   kMqttRetryMs / 1000);
@@ -112,7 +116,11 @@ bool Mqtt::Connect() {
   const std::string status_topic = base_topic_ + kStatusSuffix;
 
   client_.setServer(settings.mqtt_host.c_str(), settings.mqtt_port);
-  client_.setBufferSize(kBufferSize);
+  if (!client_.setBufferSize(kBufferSize)) {
+    // Every publish would exceed the 256 byte default, so do not connect.
+    Serial.println("MQTT: no memory for the send buffer");
+    return false;
+  }
 
   // A null user connects anonymously.
   const char* user = settings.mqtt_user.empty() ? nullptr : settings.mqtt_user.c_str();
@@ -122,7 +130,7 @@ bool Mqtt::Connect() {
     return false;
   }
 
-  client_.publish(status_topic.c_str(), kStatusOnline, /*retained=*/true);
+  Publish(status_topic, kStatusOnline, /*retained=*/true);
   SetNetworkState(NetState::kConnected);
   was_connected_ = true;
   if (ever_connected_) {
@@ -167,8 +175,8 @@ bool Mqtt::PublishState(const Readings& readings) {
 
 bool Mqtt::PublishInfo() {
   JsonDocument doc;
-  // A constant 1 turns the message into an info metric whose value carries no
-  // meaning; everything interesting sits in the string fields.
+  // A constant, so the message works as an info metric. Everything that
+  // matters sits in the string fields.
   doc["info"] = 1;
   doc["fw"] = kFirmwareVersion;
   doc["built"] = BuildTimestamp();
@@ -205,8 +213,8 @@ bool Mqtt::PublishDiag() {
   doc["sensor_retries"] = SensorRetries();
   doc["wifi_channel"] = WiFi.channel();
 
-  // Per sensor health as 0/1. Without these a null value in the state message
-  // cannot be told apart from "not installed" or "still warming up".
+  // Without these, a null in the state message could mean broken, missing or
+  // still warming up.
   const Readings readings = ReadingsStore::Instance().Snapshot();
   doc["ok_sht"] = readings.sht_ok ? 1 : 0;
   doc["ok_veml"] = readings.veml_ok ? 1 : 0;
