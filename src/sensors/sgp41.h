@@ -4,10 +4,11 @@
 
 #include <NOxGasIndexAlgorithm.h>
 #include <SensirionI2CSgp41.h>
-#include <VOCGasIndexAlgorithm.h>
 
 #include "core/readings.h"
+#include "core/time.h"
 #include "sensors/sensor.h"
+#include "sensors/voc_algorithm.h"
 
 namespace roomsense {
 
@@ -21,12 +22,18 @@ class Sgp41 : public Sensor {
   bool DoRead() override;
   void Invalidate() override;
 
+  void RestoreBaseline();
+  void SaveBaseline();
+
   SensirionI2CSgp41 sgp_;
   // Both algorithms assume one sample per second (see kSensorIntervalMs).
-  VOCGasIndexAlgorithm voc_algo_;
+  VocAlgorithm voc_algo_;
   NOxGasIndexAlgorithm nox_algo_;
-  // Raw signals are not fed into the algorithms before this time, see DoInit().
-  uint32_t warmup_until_ = 0;
+  // The algorithms see no raw signals before this has passed.
+  Deadline warmup_;
+  // Loaded once. After a re-init the algorithm knows more than NVS does.
+  bool baseline_loaded_ = false;
+  Deadline next_baseline_save_;
   float voc_index_ = NAN;
   float nox_index_ = NAN;
 };

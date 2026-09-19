@@ -26,14 +26,17 @@ constexpr const char* kFirmwareVersion = "0.2.0";
 // Network task timing.
 constexpr uint32_t kNetTickMs = 100;
 constexpr uint32_t kStatePublishIntervalMs = 10 * 1000;
-// Identity, retained. Repeated so the time series does not age away and
-// queries do not need last_over_time().
+// Identity, retained. Repeated so queries need no last_over_time().
 constexpr uint32_t kInfoPublishIntervalMs = 10 * 60 * 1000;
-// Runtime health. Heap and temperature move slowly, a faster rhythm would
-// only store noise.
+// Runtime health. Heap and temperature move slowly; faster is just noise.
 constexpr uint32_t kDiagPublishIntervalMs = 60 * 1000;
 constexpr uint32_t kWifiRetryMs = 15 * 1000;
 constexpr uint32_t kMqttRetryMs = 5 * 1000;
+
+// The SGP41 learns its baseline over hours. Only usable after this much
+// continuous operation, then written to NVS this often so a reflash keeps it.
+constexpr uint32_t kVocBaselineMinRuntimeMs = 3 * 60 * 60 * 1000;
+constexpr uint32_t kVocBaselineSaveIntervalMs = 60 * 60 * 1000;
 
 // Setup button, wired between the pin and GND, internal pull-up enabled.
 constexpr int kButtonPin = 10;

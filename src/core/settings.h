@@ -5,6 +5,11 @@
 
 namespace roomsense {
 
+// NVS namespace holding everything this firmware persists. Shared on purpose:
+// SettingsStore::Clear() wipes it, so a factory reset also drops the learned
+// VOC baseline.
+constexpr const char* kNvsNamespace = "roomsense";
+
 // Layout version of the stored settings. Bump it whenever a field is added,
 // removed or changes meaning, and add a step to Migrate() in settings.cpp.
 constexpr uint16_t kSettingsVersion = 1;

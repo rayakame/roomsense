@@ -8,8 +8,7 @@
 namespace roomsense {
 namespace {
 
-// NVS namespace and keys. Preferences limits both to 15 characters.
-constexpr const char* kNamespace = "roomsense";
+// NVS keys. Preferences limits them to 15 characters.
 constexpr const char* kVersion = "version";
 constexpr const char* kDeviceName = "device_name";
 constexpr const char* kMqttHost = "mqtt_host";
@@ -19,6 +18,13 @@ constexpr const char* kMqttPassword = "mqtt_password";
 
 std::string GetString(Preferences& prefs, const char* key, const std::string& fallback) {
   return prefs.getString(key, fallback.c_str()).c_str();
+}
+
+// False only if a non-empty value failed to write; an empty one writes no
+// bytes and cannot be told apart from a failure.
+bool PutString(Preferences& prefs, const char* key, const std::string& value) {
+  const size_t written = prefs.putString(key, value.c_str());
+  return written != 0 || value.empty();
 }
 
 // Upgrades `settings` from layout `from` to kSettingsVersion.
@@ -44,7 +50,7 @@ SettingsStore& SettingsStore::Instance() {
 void SettingsStore::Load() {
   const Settings defaults;
   Preferences prefs;
-  if (!prefs.begin(kNamespace, /*readOnly=*/true)) {
+  if (!prefs.begin(kNvsNamespace, /*readOnly=*/true)) {
     settings_ = defaults;
     loaded_version_ = 0;
     return;
@@ -71,18 +77,18 @@ void SettingsStore::Load() {
 
 bool SettingsStore::Save(const Settings& settings) {
   Preferences prefs;
-  if (!prefs.begin(kNamespace, /*readOnly=*/false)) {
+  if (!prefs.begin(kNvsNamespace, /*readOnly=*/false)) {
     Serial.println("Settings: opening NVS for writing failed");
     return false;
   }
-  // put* return the number of bytes written, 0 on failure. Empty strings
-  // legitimately write 0 bytes, so only the fixed-size keys are checked.
+  // put* return the number of bytes written, 0 on failure. An empty string
+  // legitimately writes 0 bytes, so only non-empty ones can be checked.
   bool written = prefs.putUShort(kVersion, kSettingsVersion) != 0;
   written = prefs.putUShort(kMqttPort, settings.mqtt_port) != 0 && written;
-  prefs.putString(kDeviceName, settings.device_name.c_str());
-  prefs.putString(kMqttHost, settings.mqtt_host.c_str());
-  prefs.putString(kMqttUser, settings.mqtt_user.c_str());
-  prefs.putString(kMqttPassword, settings.mqtt_password.c_str());
+  written = PutString(prefs, kDeviceName, settings.device_name) && written;
+  written = PutString(prefs, kMqttHost, settings.mqtt_host) && written;
+  written = PutString(prefs, kMqttUser, settings.mqtt_user) && written;
+  written = PutString(prefs, kMqttPassword, settings.mqtt_password) && written;
   prefs.end();
   if (!written) {
     Serial.println("Settings: writing to NVS failed");
@@ -94,7 +100,7 @@ bool SettingsStore::Save(const Settings& settings) {
 
 bool SettingsStore::Clear() {
   Preferences prefs;
-  if (!prefs.begin(kNamespace, /*readOnly=*/false)) {
+  if (!prefs.begin(kNvsNamespace, /*readOnly=*/false)) {
     Serial.println("Settings: opening NVS for writing failed");
     return false;
   }

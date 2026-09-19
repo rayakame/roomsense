@@ -8,8 +8,10 @@
 #include <Arduino.h>
 #include <Wire.h>
 
+#include "config.h"
 #include "core/readings.h"
 #include "core/time.h"
+#include "core/voc_baseline.h"
 
 namespace roomsense {
 namespace {
@@ -60,8 +62,36 @@ bool Sgp41::DoInit() {
     }
     delay(1000);
   }
-  warmup_until_ = millis() + kWarmupMs;
+  RestoreBaseline();
+  warmup_.ArmIn(kWarmupMs);
   return true;
+}
+
+void Sgp41::RestoreBaseline() {
+  if (baseline_loaded_) {
+    return;
+  }
+  baseline_loaded_ = true;
+
+  VocBaseline baseline;
+  if (!LoadVocBaseline(baseline)) {
+    // Nothing stored yet, the algorithm has to learn from scratch.
+    next_baseline_save_.ArmIn(kVocBaselineMinRuntimeMs);
+    return;
+  }
+  voc_algo_.SetStates(baseline.state0, baseline.state1);
+  next_baseline_save_.ArmIn(kVocBaselineSaveIntervalMs);
+  Serial.printf("SGP41: VOC baseline restored (%.1f / %.1f)\n", baseline.state0, baseline.state1);
+}
+
+void Sgp41::SaveBaseline() {
+  VocBaseline baseline;
+  voc_algo_.GetStates(baseline.state0, baseline.state1);
+  if (SaveVocBaseline(baseline)) {
+    Serial.printf("SGP41: VOC baseline saved (%.1f / %.1f)\n", baseline.state0, baseline.state1);
+  } else {
+    Serial.println("SGP41: saving the VOC baseline failed");
+  }
 }
 
 bool Sgp41::DoRead() {
@@ -80,13 +110,18 @@ bool Sgp41::DoRead() {
   if (sgp_.measureRawSignals(rh_ticks, t_ticks, sraw_voc, sraw_nox) != 0) {
     return false;
   }
-  if (!Reached(millis(), warmup_until_)) {
+  if (!warmup_.Elapsed()) {
     voc_index_ = NAN;
     nox_index_ = NAN;
     return true;
   }
   voc_index_ = IndexOrNan(voc_algo_.process(sraw_voc));
   nox_index_ = IndexOrNan(nox_algo_.process(sraw_nox));
+
+  if (next_baseline_save_.Elapsed()) {
+    SaveBaseline();
+    next_baseline_save_.ArmIn(kVocBaselineSaveIntervalMs);
+  }
   return true;
 }
 
