@@ -3,10 +3,9 @@
 #include <cstdint>
 
 #include <Arduino.h>
-#include <WiFi.h>
 
 #include "config.h"
-#include "core/settings.h"
+#include "core/factory_reset.h"
 #include "core/status_led.h"
 
 namespace roomsense {
@@ -25,9 +24,6 @@ constexpr int kReleaseSamples = 3;
 // Time for the serial output to leave the buffer before the chip restarts.
 constexpr uint32_t kFlushDelayMs = 200;
 
-// Long enough for the red confirmation of ShowFactoryReset() to be seen.
-constexpr uint32_t kFactoryResetConfirmMs = 1000;
-
 // What a release right now would trigger.
 ButtonHint HintFor(uint32_t held_ms) {
   if (held_ms >= kButtonFactoryResetHoldMs) {
@@ -41,12 +37,10 @@ ButtonHint HintFor(uint32_t held_ms) {
 
 void HandleRelease(uint32_t held_ms) {
   if (held_ms >= kButtonFactoryResetHoldMs) {
-    Serial.println("Button: factory reset, restarting");
-    SettingsStore::Instance().Clear();
-    WiFi.disconnect(/*wifioff=*/true, /*eraseap=*/true);
-    ShowFactoryReset();
-    delay(kFactoryResetConfirmMs);
-    ESP.restart();
+    Serial.println("Button: factory reset requested");
+    // Keep the LED red until the network task has carried it out.
+    SetButtonHint(ButtonHint::kFactoryReset);
+    RequestFactoryReset();
   } else if (held_ms >= kButtonPortalHoldMs) {
     Serial.println("Button: opening setup portal, restarting");
     portal_request = kPortalRequestMagic;
@@ -83,7 +77,7 @@ void ButtonTask(void* /*unused*/) {
 }  // namespace
 
 void StartButtonTask() {
-  // 4 KB because SettingsStore::Clear() writes to NVS.
+  // Only reads a pin and sets flags, but Serial.printf needs room.
   xTaskCreatePinnedToCore(ButtonTask, "button", 4096, nullptr, 1, nullptr, 1);
 }
 

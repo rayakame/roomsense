@@ -6,6 +6,7 @@
 
 #include "config.h"
 #include "core/diagnostics.h"
+#include "core/factory_reset.h"
 #include "core/readings.h"
 #include "core/time.h"
 #include "net/mqtt.h"
@@ -22,6 +23,8 @@ void NetTask(void* /*unused*/) {
   Deadline next_diag;
   bool was_connected = false;
   for (;;) {
+    // Before anything of ours is in flight.
+    RunFactoryResetIfRequested();
     WifiTick();
     Mqtt::Instance().Tick();
     const bool connected = Mqtt::Instance().IsConnected();
