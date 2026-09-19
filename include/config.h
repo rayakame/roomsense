@@ -19,6 +19,12 @@ constexpr int kMicDinPin = 9;
 constexpr uint32_t kMicSampleRate = 48000;
 constexpr int kMicBlockSamples = kMicSampleRate / 8;  // 125 ms
 constexpr int kMicBlocksPerSecond = 8;
+// How long a block read may take before it counts as an error, and how many
+// of those in a row tear the I2S channel down for a fresh start.
+constexpr uint32_t kMicReadTimeoutMs = 500;
+constexpr int kMicMaxReadErrors = 5;
+// Pause between two attempts to bring the I2S channel up.
+constexpr uint32_t kMicRetryMs = 5000;
 
 // Firmware version, published with every state message.
 constexpr const char* kFirmwareVersion = "0.2.0";

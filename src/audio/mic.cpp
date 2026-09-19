@@ -1,6 +1,8 @@
 #include "audio/mic.h"
 
 #include <array>
+#include <cstddef>
+#include <cstdint>
 
 #include <Arduino.h>
 #include <driver/i2s_std.h>
@@ -14,9 +16,21 @@ namespace {
 
 i2s_chan_handle_t rx_handle = nullptr;
 
-bool InitI2s() {
+// Hands the channel back. Safe to call without one, and the disable is allowed
+// to fail: a channel that never started is already in the right state.
+void StopI2s() {
+  if (rx_handle == nullptr) {
+    return;
+  }
+  i2s_channel_disable(rx_handle);
+  i2s_del_channel(rx_handle);
+  rx_handle = nullptr;
+}
+
+bool StartI2s() {
   const i2s_chan_config_t chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_0, I2S_ROLE_MASTER);
   if (i2s_new_channel(&chan_cfg, nullptr, &rx_handle) != ESP_OK) {
+    rx_handle = nullptr;
     return false;
   }
 
@@ -35,10 +49,13 @@ bool InitI2s() {
   };
   std_cfg.slot_cfg.slot_mask = I2S_STD_SLOT_LEFT;  // SEL auf GND
 
-  if (i2s_channel_init_std_mode(rx_handle, &std_cfg) != ESP_OK) {
+  if (i2s_channel_init_std_mode(rx_handle, &std_cfg) != ESP_OK ||
+      i2s_channel_enable(rx_handle) != ESP_OK) {
+    // Give the channel back, or the next attempt has nothing left to allocate.
+    StopI2s();
     return false;
   }
-  return i2s_channel_enable(rx_handle) == ESP_OK;
+  return true;
 }
 
 void MicTask(void* /*unused*/) {
@@ -46,22 +63,48 @@ void MicTask(void* /*unused*/) {
   static std::array<int32_t, kMicBlockSamples> block;
   static LevelMeter level_meter;
 
-  if (!InitI2s()) {
-    Serial.println("MIC: I2S init failed");
-    level_meter.Invalidate();
-    vTaskDelete(nullptr);
-  }
-  Serial.println("MIC: ready");
+  bool running = false;
+  bool failure_reported = false;
+  int read_errors = 0;
 
   for (;;) {
-    std::size_t bytes_read = 0;
-    const esp_err_t err =
-        i2s_channel_read(rx_handle, block.data(), sizeof(block), &bytes_read, pdMS_TO_TICKS(500));
-    if (err != ESP_OK || bytes_read != sizeof(block)) {
+    // Down: keep trying, the same way a missing I2C sensor does.
+    if (!running) {
+      if (StartI2s()) {
+        Serial.println("MIC: ready");
+        running = true;
+        failure_reported = false;
+        read_errors = 0;
+        continue;
+      }
       level_meter.Invalidate();
+      // Only the first failure is worth a line, the retries would repeat it.
+      if (!failure_reported) {
+        Serial.printf("MIC: I2S start failed, retrying every %u s\n", kMicRetryMs / 1000);
+        failure_reported = true;
+      }
+      vTaskDelay(pdMS_TO_TICKS(kMicRetryMs));
       continue;
     }
-    level_meter.Process(block);
+
+    std::size_t bytes_read = 0;
+    const esp_err_t err = i2s_channel_read(rx_handle, block.data(), sizeof(block), &bytes_read,
+                                           pdMS_TO_TICKS(kMicReadTimeoutMs));
+    if (err == ESP_OK && bytes_read == sizeof(block)) {
+      read_errors = 0;
+      level_meter.Process(block);
+      continue;
+    }
+
+    level_meter.Invalidate();
+    if (++read_errors >= kMicMaxReadErrors) {
+      Serial.printf("MIC: %d failed reads, restarting the channel\n", read_errors);
+      StopI2s();
+      running = false;
+      continue;
+    }
+    // A read that fails without waiting would otherwise spin the task.
+    vTaskDelay(pdMS_TO_TICKS(kMicReadTimeoutMs));
   }
 }
 
